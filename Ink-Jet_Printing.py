@@ -110,7 +110,7 @@ def clip_segment_by_length(points, cumlen, s):
 # =========================
 # 主流程
 # =========================
-file_path = r"C:/Users/cscszy/Desktop/Temp/蛇形电极1.txt"
+file_path = r"C:/Users/cscszy/Desktop/Temp/2_Test.txt"
 with open(file_path, "r", encoding="utf-8") as f:
     lines = f.readlines()
 
@@ -132,7 +132,7 @@ seg_lengths = np.asarray(seg_lengths)
 seg_prefix = np.concatenate([[0.0], np.cumsum(seg_lengths)])
 total_length = seg_prefix[-1]
 
-speed = 40.0  # mm/s
+speed = 20.0  # mm/s
 interval = 20  # ms
 dt = interval / 1000.0
 n_frames = max(1, int(np.ceil(total_length / speed / dt)))
