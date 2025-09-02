@@ -9,6 +9,7 @@ from PyQt6.QtCore import Qt
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
+from matplotlib import rcParams
 from PyQt6.QtGui import QIntValidator
 
 # -----------------------
@@ -114,9 +115,23 @@ class GCodeAnimator(QWidget):
         self.init_ui()
 
     def init_ui(self):
+        rcParams['font.family'] = 'Arial'
+        rcParams['axes.unicode_minus'] = False  # 避免负号显示为方块
         layout = QVBoxLayout()
         # matplotlib canvas
         self.fig, self.ax = plt.subplots(figsize=(6, 8))
+        self.ax.set_title("G-code Printing Path", fontsize=20, fontweight="bold", pad=10)
+        self.ax.set_xlabel("X (mm)", fontsize=20, fontweight="bold")
+        self.ax.set_ylabel("Y (mm)", fontsize=20, fontweight="bold")
+        for label in (self.ax.get_xticklabels() + self.ax.get_yticklabels()):
+            label.set_fontsize(12)
+            label.set_fontweight("bold")
+        # 设置坐标轴线条加粗
+        for spine in self.ax.spines.values():
+            spine.set_linewidth(2)   # 设置成 2，可以根据需要调粗细
+        self.ax.tick_params(axis='both', width=2)  # 刻度线宽度
+
+
         self.canvas = FigureCanvas(self.fig)
         layout.addWidget(self.canvas, stretch=1)   # 图像占满空间
 
@@ -131,9 +146,18 @@ class GCodeAnimator(QWidget):
         self.play_btn.clicked.connect(self.play_animation)
         hbox.addWidget(self.play_btn)
 
+        self.pause_btn = QPushButton("暂停")
+        self.pause_btn.clicked.connect(self.pause_animation)
+        hbox.addWidget(self.pause_btn)
+        self.is_paused = False
+
         self.reset_btn = QPushButton("重置")
         self.reset_btn.clicked.connect(self.reset_animation)
         hbox.addWidget(self.reset_btn)
+
+        self.exit_btn = QPushButton("退出")
+        self.exit_btn.clicked.connect(QApplication.quit)
+        hbox.addWidget(self.exit_btn)
 
         spacer = QSpacerItem(40, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
         hbox.addItem(spacer)
@@ -141,7 +165,6 @@ class GCodeAnimator(QWidget):
         hbox.addWidget(QLabel("速度"))
         self.speed_input = QLineEdit(str(int(self.speed)))
         self.speed_input.setFixedWidth(40)
-        self.speed_input.returnPressed.connect(self.change_speed_from_input)
         self.speed_input.setValidator(QIntValidator(0, 50))  # 限制输入范围在 [0, 50]
         self.speed_input.returnPressed.connect(self.change_speed_from_input)
         hbox.addWidget(self.speed_input)
@@ -150,7 +173,17 @@ class GCodeAnimator(QWidget):
         layout.addLayout(hbox, stretch=0)   # 底部按钮行不会被拉大
         self.setLayout(layout)
 
-
+        # 设置圆角和美化
+        self.setStyleSheet("""
+        QPushButton {
+            border-radius: 8px;
+        QLineEdit {
+            border-radius: 6px;
+        }
+        QLabel {
+            font-weight: bold;
+        }
+        """)
 
     def load_file(self):
         path,_=QFileDialog.getOpenFileName(self,"选择G-code文件","","Text Files (*.txt *.gcode);;All Files (*)")
@@ -160,6 +193,13 @@ class GCodeAnimator(QWidget):
         self.segments=parse_gcode(lines)
         self.compute_lengths()
         self.reset_animation()
+
+        # 动态修改窗口标题为文件名
+        window = self.window()
+        if window is not None:
+            import os
+            filename = os.path.basename(path)
+            window.setWindowTitle(f"G-code Printing Path - {filename}")
 
     def compute_lengths(self):
         self.seg_cumlens=[]; self.seg_lengths=[]
@@ -192,7 +232,12 @@ class GCodeAnimator(QWidget):
         ys_all = [p[1] for p in all_pts] if all_pts else [0,1]
         self.ax.set_xlim(min(xs_all)-margin, max(xs_all)+margin)
         self.ax.set_ylim(min(ys_all)-margin, max(ys_all)+2*margin)
-        self.ax.set_title("G-code Printing Path")
+        self.ax.set_title("G-code Printing Path", fontsize=20, fontweight="bold", pad=10)
+        self.ax.set_xlabel("X (mm)", fontsize=20, fontweight="bold")
+        self.ax.set_ylabel("Y (mm)", fontsize=20, fontweight="bold")
+        for label in (self.ax.get_xticklabels() + self.ax.get_yticklabels()):
+            label.set_fontsize(12)
+            label.set_fontweight("bold")
 
         self.lines_objs = []
         for seg in self.segments:
@@ -256,7 +301,20 @@ class GCodeAnimator(QWidget):
         )
         self.canvas.draw_idle()
 
+    def pause_animation(self):
+        if self.ani is None or getattr(self.ani, "event_source", None) is None:
+            return
 
+        if not self.is_paused:
+            # 暂停
+            self.ani.event_source.stop()
+            self.pause_btn.setText("继续")
+            self.is_paused = True
+        else:
+            # 继续
+            self.ani.event_source.start()
+            self.pause_btn.setText("暂停")
+            self.is_paused = False
 
     def update(self,_):
         D=min(self.frame_idx_global*self.speed*self.dt,self.total_length)
@@ -294,5 +352,6 @@ if __name__=="__main__":
     animator=GCodeAnimator()
     window.setCentralWidget(animator)
     window.resize(800,1000)
+    window.setWindowTitle("G-code Printing Path")
     window.show()
     sys.exit(app.exec())
