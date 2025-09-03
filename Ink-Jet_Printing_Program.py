@@ -86,7 +86,7 @@ def parse_gcode(lines, geom_step=0.05):
         # 直线快速移动 (虚线)
         if cmd == "G00":
             points = [(x,y),(new_x,new_y)]
-            color='0.7'; linestyle='--'
+            color='0.6'; linestyle='--'
 
         # 直线插补 (实线)
         elif cmd=="G01":
@@ -103,6 +103,7 @@ def parse_gcode(lines, geom_step=0.05):
         # 回到原点
         elif cmd=="G28":
             points = [(x,y),(0,0)]
+            color='0.6'; linestyle='--'
             new_x, new_y = 0.0, 0.0
 
         # 程序结束
