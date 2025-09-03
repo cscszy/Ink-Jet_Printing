@@ -5,6 +5,7 @@ from PyQt6.QtWidgets import (
     QVBoxLayout, QWidget, QLineEdit, QLabel, QMessageBox,
     QTextEdit, QHBoxLayout
 )
+from PyQt6.QtGui import QTextCharFormat, QColor, QFont
 
 
 class GCodeModifier(QMainWindow):
@@ -12,6 +13,7 @@ class GCodeModifier(QMainWindow):
         super().__init__()
         self.setWindowTitle("G-code 原点偏移修正工具")
         self.setGeometry(200, 200, 800, 600)
+        self.setFont(QFont("Simsun", 10))
 
         # 文件路径
         self.file_path = None
@@ -95,19 +97,53 @@ class GCodeModifier(QMainWindow):
             return
 
         self.modified_lines = []
-        for line in self.original_lines:
-            # 修改 X(...) 和 x(...)
-            line = re.sub(r"(X)(-?\d+\.\d+)", lambda m: f"X{float(m.group(2)) + dx:.6f}", line)
-            line = re.sub(r"(x)(-?\d+\.\d+)", lambda m: f"x{float(m.group(2)) + dx:.6f}", line)
+        self.modified_text.clear()
+        cursor = self.modified_text.textCursor()
 
-            # 修改 Y(...) 和 y(...)
-            line = re.sub(r"(Y)(-?\d+\.\d+)", lambda m: f"Y{float(m.group(2)) + dy:.6f}", line)
-            line = re.sub(r"(y)(-?\d+\.\d+)", lambda m: f"y{float(m.group(2)) + dy:.6f}", line)
+        # 定义普通和高亮格式
+        normal_format = QTextCharFormat()
+        normal_format.setForeground(QColor("black"))
+        normal_format.setFont(QFont("Simsun", 10))
 
-            self.modified_lines.append(line)
+        highlight_format = QTextCharFormat()
+        highlight_format.setForeground(QColor("red"))
 
-        # 显示在右侧文本框
-        self.modified_text.setPlainText("".join(self.modified_lines))
+        # 正则匹配 X/Y/x/y 后的数值
+        pattern = re.compile(r"([XYxy])(-?\d+\.\d+)")
+
+        for orig_line in self.original_lines:
+            pos = 0
+            new_line = ""
+
+            for match in pattern.finditer(orig_line):
+                axis, value_str = match.groups()
+                value = float(value_str)
+                new_value = value + (dx if axis.lower() == "x" else dy)
+
+                # 1. 插入前面没改的部分（普通格式）
+                unchanged_text = orig_line[pos:match.start()]
+                cursor.insertText(unchanged_text, normal_format)
+                new_line += unchanged_text
+
+                # 2. 插入 axis（普通格式）
+                cursor.insertText(axis, normal_format)
+                new_line += axis
+
+                # 3. 插入修改后的数值（高亮格式）
+                cursor.insertText(f"{new_value:.6f}", highlight_format)
+                new_line += f"{new_value:.6f}"
+
+                pos = match.end()
+
+            # 插入最后剩下的部分（普通格式）
+            rest_text = orig_line[pos:]
+            cursor.insertText(rest_text, normal_format)
+            new_line += rest_text
+
+            self.modified_lines.append(new_line)
+
+        # 确保换行
+        cursor.insertText("\n", normal_format)
 
     def save_file(self):
         if not self.modified_lines:

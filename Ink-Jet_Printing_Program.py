@@ -3,7 +3,7 @@ import numpy as np
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QPushButton,
     QVBoxLayout, QHBoxLayout, QFileDialog, QLabel, QLineEdit,
-    QSpacerItem, QSizePolicy,
+    QSpacerItem, QSizePolicy, QMessageBox
 )
 from PyQt6.QtCore import Qt
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
@@ -71,10 +71,10 @@ def parse_gcode(lines, geom_step=0.05):
         cx, cy = None, None
         # 解析参数
         for p in parts[1:]:
-            if p.startswith("X"): new_x = float(p[1:])
-            elif p.startswith("Y"): new_y = float(p[1:])
-            elif p.startswith("I"): cx = x + float(p[1:])   # 圆心相对坐标
-            elif p.startswith("J"): cy = y + float(p[1:])
+            if p.startswith("X") and len(p)>1: new_x = float(p[1:])
+            elif p.startswith("Y") and len(p)>1: new_y = float(p[1:])
+            elif p.startswith("x") and len(p)>1: cx = float(p[1:])   # 圆心相对坐标
+            elif p.startswith("y") and len(p)>1: cy = float(p[1:])
 
         if new_x is None: new_x = x
         if new_y is None: new_y = y
@@ -237,6 +237,7 @@ class GCodeAnimator(QWidget):
         self.speed_input = QLineEdit(str(int(self.speed)))
         self.speed_input.setFixedWidth(40)
         self.speed_input.setValidator(QIntValidator(0, 50))  # 限制 [0, 50]
+        self.speed_input.setPlaceholderText("0-50")  # 👈 占位提示
         self.speed_input.returnPressed.connect(self.change_speed_from_input)
         hbox.addWidget(self.speed_input)
         hbox.addWidget(QLabel("mm/s"))
@@ -246,21 +247,39 @@ class GCodeAnimator(QWidget):
 
     # ================== G-code 文件读取 ==================
     def load_file(self):
-        """选择并加载 G-code 文件"""
-        path,_=QFileDialog.getOpenFileName(self,"选择G-code文件","","Text Files (*.txt *.gcode);;All Files (*)")
-        if not path: return
-        with open(path,"r",encoding="utf-8") as f:
-            lines=f.readlines()
-        self.segments=parse_gcode(lines)
-        self.compute_lengths()
-        self.reset_animation()
+        """选择并加载 G-code 文件(UTF-8 编码)"""
+        try:
+            path, _ = QFileDialog.getOpenFileName(
+                self,
+                "选择G-code文件",
+                "",
+                "Text Files (*.txt *.gcode);;All Files (*)"
+            )
+            if not path:
+                return
 
-        # 动态修改窗口标题
-        window = self.window()
-        if window is not None:
-            import os
-            filename = os.path.basename(path)
-            window.setWindowTitle(f"G-code Printing Path - {filename}")
+            # 读取 UTF-8 文件
+            with open(path, "r", encoding="utf-8") as f:
+                lines = f.readlines()
+
+            self.segments = parse_gcode(lines)
+            self.compute_lengths()
+            self.reset_animation()
+
+            # 动态修改窗口标题
+            window = self.window()
+            if window is not None:
+                import os
+                filename = os.path.basename(path)
+                window.setWindowTitle(f"G-code Printing Path - {filename}")
+
+        except Exception as e:
+            # 捕获异常并记录日志
+            import traceback
+            with open("error.log", "w", encoding="utf-8") as f:
+                f.write(traceback.format_exc())
+            from PyQt6.QtWidgets import QMessageBox
+            QMessageBox.critical(self, "错误", f"加载文件失败: {e}")
 
     # ================== 路径长度计算 ==================
     def compute_lengths(self):
