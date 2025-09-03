@@ -73,6 +73,14 @@ class GCodeModifier(QMainWindow):
         container.setLayout(main_layout)
         self.setCentralWidget(container)
 
+        # 让左右文本框的滚动条保持同步
+        self.original_text.verticalScrollBar().valueChanged.connect(
+            self.modified_text.verticalScrollBar().setValue
+        )
+        self.modified_text.verticalScrollBar().valueChanged.connect(
+            self.original_text.verticalScrollBar().setValue
+        )
+
     def load_file(self):
         file_dialog = QFileDialog()
         file_path, _ = file_dialog.getOpenFileName(self, "选择 G-code 文件", "", "Text Files (*.txt)")
@@ -141,9 +149,6 @@ class GCodeModifier(QMainWindow):
             new_line += rest_text
 
             self.modified_lines.append(new_line)
-
-        # 确保换行
-        cursor.insertText("\n", normal_format)
 
     def save_file(self):
         if not self.modified_lines:
